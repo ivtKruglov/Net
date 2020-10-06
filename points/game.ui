@@ -22,8 +22,14 @@
      <height>31</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Calibri</family>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
    <property name="text">
-    <string>Завершить игру</string>
+    <string>Покинуть игру</string>
    </property>
   </widget>
   <widget class="QLabel" name="label">
@@ -34,6 +40,12 @@
      <width>47</width>
      <height>13</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Calibri</family>
+     <pointsize>10</pointsize>
+    </font>
    </property>
    <property name="text">
     <string>Счёт:</string>
@@ -48,6 +60,12 @@
      <height>13</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Calibri</family>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
    <property name="text">
     <string>Игрок 1 - </string>
    </property>
@@ -60,6 +78,12 @@
      <width>47</width>
      <height>13</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Calibri</family>
+     <pointsize>10</pointsize>
+    </font>
    </property>
    <property name="text">
     <string>Игрок 2 - </string>
@@ -76,8 +100,35 @@
    </property>
    <property name="font">
     <font>
-     <pointsize>12</pointsize>
+     <family>Calibri</family>
+     <pointsize>10</pointsize>
     </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_5">
+   <property name="geometry">
+    <rect>
+     <x>390</x>
+     <y>420</y>
+     <width>47</width>
+     <height>13</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_6">
+   <property name="geometry">
+    <rect>
+     <x>390</x>
+     <y>440</y>
+     <width>47</width>
+     <height>13</height>
+    </rect>
    </property>
    <property name="text">
     <string/>

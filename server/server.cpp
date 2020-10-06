@@ -2,67 +2,145 @@
 
 Server::Server(){}
 
-
 Server::~Server(){}
-
 
 void Server::startServer()
 {
-    socket = new QUdpSocket(this);
-    socket->bind(QHostAddress::LocalHost, 1000);
-    senderports = new QVector<quint16>();
-    connect(socket, SIGNAL(readyRead()), this, SLOT(socketReady()));
+    setAddress();
+    quint16 serverport = 1000;                                 // Порт сервера
+    socket.bind(serveraddr, serverport);
     qDebug()<<"Сервер запущен";
-}
+    qDebug() << "IP-адрес сервера: " << serveraddr.toString();
+    qDebug() << "Порт сервера: " << serverport;
 
+    connect(&socket, SIGNAL(readyRead()), this, SLOT(socketReady()));
+}
 
 void Server::socketReady()
 {
-    data = new QByteArray();
-    sender = new QHostAddress();
-    senderport = new quint16();
+    QString datastr;
+    data.resize(quint16(socket.pendingDatagramSize()));
+    status = socket.readDatagram(data.data(), data.size(), &sender, &senderport);
+    while (status == -1)
+        status = socket.readDatagram(data.data(), data.size(), &sender, &senderport);
+    // Если пришел пакет от не играющего (лишнего) клиента, то удалить содержимое
+    if (senderports.size() == 2 && (!inArr(senderport, senderports) || !inArr(sender, senders)))
+        data.clear();
+    else if (senderports.size() < 2 && (!inArr(senderport, senderports) || !inArr(sender, senders)))
+    {
+        bool rand = generateRand();
+        QVector<QString> colors;
+        QVector<QString> turns;
+        if (rand)
+        {
+            colors.append(QString::number(rand));
+            colors.append(QString::number(false));
+        }
+        else
+        {
+            colors.append(QString::number(rand));
+            colors.append(QString::number(true));
+        }
+        rand = generateRand();
+        if (rand)
+        {
+            turns.append(QString::number(rand));
+            turns.append(QString::number(false));
+        }
+        else
+        {
+            turns.append(QString::number(rand));
+            turns.append(QString::number(true));
+        }
+        senderports.append(senderport);
+        senders.append(sender);
+        qDebug() << "Подключился игрок " << data.data();
+        nicknames.append(data.data());
+        data.clear();
+        if (senderports.size() == 2)
+        {
+            data.append(nicknames.value(1).toStdString().c_str());
+            data.append("|");
+            data.append(colors.value(0).toStdString().c_str());
+            data.append("|");
+            data.append(turns.value(0).toStdString().c_str());
+            data.append("|");
+            socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
+            data.clear();
 
-    data->resize(quint16(socket->pendingDatagramSize()));
-    socket->readDatagram(data->data(), data->size(), sender, senderport);
-    if (senderports->size() < 2 && not inArr(senderport, senderports))
-        senderports->push_back(*senderport);
+            data.append(nicknames.value(0).toStdString().c_str());
+            data.append("|");
+            data.append(colors.value(1).toStdString().c_str());
+            data.append("|");
+            data.append(turns.value(1).toStdString().c_str());
+            data.append("|");
+            socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
+            data.clear();
+
+            nicknames.clear();
+        }
+    }
     else
     {
-        if (*senderport == senderports->value(0))
-            socket->writeDatagram(data->data(), *sender, senderports->value(1));
-        else if (*senderport == senderports->value(1))
-            socket->writeDatagram(data->data(), *sender, senderports->value(0));
+        if (senderport == senderports.value(0))
+        {
+            status = socket.writeDatagram(data.data(), sender, senderports.value(1));
+            while (status == -1)
+                status = socket.writeDatagram(data.data(), sender, senderports.value(1));
+        }
+        else if (senderport == senderports.value(1))
+        {
+            status = socket.writeDatagram(data.data(), sender, senderports.value(0));
+            while (status == -1)
+                status = socket.writeDatagram(data.data(), sender, senderports.value(0));
+        }
+        QString datastr = data.data();
+        if (datastr == "leave")
+        {
+            senders.clear();
+            senderports.clear();
+            qDebug() << "Игра окончена.";
+        }
+        else
+        {
+            qDebug() << "Данные получены: " << data.data();
+            qDebug() << "Адрес отправителя: " << sender.toString();
+            qDebug() << "Порт отправителя: " << quint16(senderport);
+        }
     }
-
-    qDebug()<<"Данные получены: "<<data->data();
-    qDebug()<<"Адрес отправителя: "<<sender->toString();
-    qDebug()<<"Порт отправителя: "<<quint16(*senderport);
 }
 
-
-bool Server::inArr(quint16 *port, QVector<quint16> *arr)
+template <typename T>
+bool Server::inArr(T &item, QVector<T> &arr)
 {
     bool res = false;
-    for (quint16 p:*arr)
+    for (T i:arr)
     {
-        if (p == *port)
+        if (i == item)
             res = true;
     }
     return res;
 }
 
-
-void Server::setTurn()
+bool Server::generateRand()
 {
-    short *rand = new short();
-    bool *pl_1 = new bool();
-    bool *pl_2 = new bool();
+    short res;
+    bool rand = false;
 
-    *pl_1 = false;
-    *pl_2 = false;
-    *rand = qrand() % ((1 + 1) - 0) + 0; //По формуле qrand() % ((max + 1) - min) + min
-    if (*rand == 0)
-        *pl_1 = true;
+    res = qrand() % 2; //По формуле qrand() % ((max + 1) - min) + min
+    if (res == 0)
+        rand = true;
     else
-        *pl_2 = true;
+        rand = true;
+    return rand;
+}
+
+void Server::setAddress()
+{
+    // Отправить пакеты по TCP на DNS-сервер и вывести адрес отправителя (адрес данного устройства)
+    QTcpSocket socket;
+    socket.connectToHost("8.8.8.8", 53);
+    if (socket.waitForConnected())
+        serveraddr =  socket.localAddress();
+    socket.disconnect();
 }
