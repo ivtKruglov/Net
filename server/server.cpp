@@ -9,8 +9,9 @@ void Server::startServer()
     setAddress();
     quint16 serverport = 1000;                                 // Порт сервера
     socket.bind(serveraddr, serverport);
-    qDebug()<<"Сервер запущен";
-    qDebug() << "IP-адрес сервера: " << serveraddr.toString();
+
+    qDebug() << "Сервер запущен";
+    qDebug() << "IP-адрес сервера: " << socket.localAddress().toString();
     qDebug() << "Порт сервера: " << serverport;
 
     connect(&socket, SIGNAL(readyRead()), this, SLOT(socketReady()));
@@ -23,10 +24,11 @@ void Server::socketReady()
     status = socket.readDatagram(data.data(), data.size(), &sender, &senderport);
     while (status == -1)
         status = socket.readDatagram(data.data(), data.size(), &sender, &senderport);
+    datastr = data.data();
     // Если пришел пакет от не играющего (лишнего) клиента, то удалить содержимое
     if (senderports.size() == 2 && (!inArr(senderport, senderports) || !inArr(sender, senders)))
         data.clear();
-    else if (senderports.size() < 2 && (!inArr(senderport, senderports) || !inArr(sender, senders)))
+    else if (senderports.size() < 2 && (!inArr(senderport, senderports) || !inArr(sender, senders)) && datastr != "leave")
     {
         bool rand = generateRand();
         QVector<QString> colors;
@@ -67,7 +69,6 @@ void Server::socketReady()
             data.append("|");
             socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
             data.clear();
-
             data.append(nicknames.value(0).toStdString().c_str());
             data.append("|");
             data.append(colors.value(1).toStdString().c_str());
@@ -76,36 +77,43 @@ void Server::socketReady()
             data.append("|");
             socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
             data.clear();
-
             nicknames.clear();
         }
+    }
+    else if (datastr == "leave" || datastr == "end")
+    {
+        if (senderport == senderports.value(0))
+        {
+            status = socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
+            while (status == -1)
+                status = socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
+        }
+        else if (senderport == senderports.value(1))
+        {
+            status = socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
+            while (status == -1)
+                status = socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
+        }
+        senders.clear();
+        senderports.clear();
+        nicknames.clear();
+        data.clear();
+        datastr.clear();
+        qDebug() << "Игра окончена.";
     }
     else
     {
         if (senderport == senderports.value(0))
         {
-            status = socket.writeDatagram(data.data(), sender, senderports.value(1));
+            status = socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
             while (status == -1)
-                status = socket.writeDatagram(data.data(), sender, senderports.value(1));
+                status = socket.writeDatagram(data.data(), senders.value(1), senderports.value(1));
         }
         else if (senderport == senderports.value(1))
         {
-            status = socket.writeDatagram(data.data(), sender, senderports.value(0));
+            status = socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
             while (status == -1)
-                status = socket.writeDatagram(data.data(), sender, senderports.value(0));
-        }
-        QString datastr = data.data();
-        if (datastr == "leave")
-        {
-            senders.clear();
-            senderports.clear();
-            qDebug() << "Игра окончена.";
-        }
-        else
-        {
-            qDebug() << "Данные получены: " << data.data();
-            qDebug() << "Адрес отправителя: " << sender.toString();
-            qDebug() << "Порт отправителя: " << quint16(senderport);
+                status = socket.writeDatagram(data.data(), senders.value(0), senderports.value(0));
         }
     }
 }
@@ -137,10 +145,14 @@ bool Server::generateRand()
 
 void Server::setAddress()
 {
-    // Отправить пакеты по TCP на DNS-сервер и вывести адрес отправителя (адрес данного устройства)
-    QTcpSocket socket;
-    socket.connectToHost("8.8.8.8", 53);
-    if (socket.waitForConnected())
-        serveraddr =  socket.localAddress();
-    socket.disconnect();
+    QList<QHostAddress> inf;
+    inf = QHostInfo::fromName(QHostInfo::localHostName()).addresses();
+    for (QHostAddress addr:inf)
+    {
+        if (addr.protocol() != QAbstractSocket::IPv6Protocol)
+        {
+            serveraddr = addr;
+            QHostInfo::fromName(QHostInfo::localHostName());
+        }
+    }
 }

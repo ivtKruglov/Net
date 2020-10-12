@@ -24,9 +24,7 @@ void Draw::draw_closed_lines(QPainter &qp, QVector<QPoint> &closedp, const QColo
 {
     qp.setPen(QPen(color, 2, Qt::SolidLine));
     for (int i = 0; i < closedp.size()-1; ++i)
-    {
         qp.drawLine(closedp.value(i).x(), closedp.value(i).y(), closedp.value(i+1).x(), closedp.value(i+1).y());
-    }
     if (closedp.size() > 0)
         qp.drawLine(closedp.value(0).x(), closedp.value(0).y(), closedp.last().x(), closedp.last().y());
 }

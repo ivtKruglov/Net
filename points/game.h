@@ -3,9 +3,8 @@
 
 #include "draw.h"
 #include <QUdpSocket>
-#include <QTcpSocket>
+#include <QHostInfo>
 #include <QDialog>
-#include <QVector>
 #include <QString>
 #include <QMouseEvent>
 #include <QCursor>
@@ -53,6 +52,7 @@ public:
 
     // Узнать адрес данного клиента и запомнить, чтобы связать с портом этого же клиента через сокет
     void setAddress();
+    void clearGame();                                   // Очистить окно и задать значения, как при инициализации
 
 signals:
     void mainwin();                                     // Сигнал для открытия mainwindow
@@ -62,6 +62,7 @@ private slots:
     void showEvent(QShowEvent *);
     void mouseReleaseEvent(QMouseEvent *event);
     void paintEvent(QPaintEvent *);
+    void closeEvent(QCloseEvent *);
     void socketReady();
     void on_pushButton_clicked();                 // Завершить игру
 
@@ -89,8 +90,9 @@ private:
     QVector<QPoint> friends;                      // Соседи точки, находящейся внутри области
     bool permit;                                  // Разрешение на ход
     bool preData;                                 // Готовность к игре
-    int score_1;
-    int score_2;
+    bool skipEvent;                               // Переменная для игнорирования или подтверждения события closeEvent
+    int score_1;                                  // Счет 1 игрока
+    int score_2;                                  // Счет 2 игрока
     qint64 status;                                // Результат отправки или чтения пакета
 };
 

@@ -3,7 +3,8 @@
 
 #include <QString>
 #include <QUdpSocket>
-#include <QTcpSocket>
+#include <QHostInfo>
+#include <QProcess>
 
 class Server:public QUdpSocket
 {

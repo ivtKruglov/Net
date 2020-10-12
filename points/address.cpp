@@ -13,7 +13,6 @@ Address::Address(QWidget *parent) :
     };
     gamewin = new Game();
     connect(gamewin, SIGNAL(mainwin()), this, SLOT(openmain()));
-    connect(this, SIGNAL(mainwin()), this, SLOT(close()));
 }
 
 Address::~Address()
@@ -26,13 +25,7 @@ void Address::on_pushButton_clicked()
 {
     QRegExp rx(correctIP.values(0).last());
     if (rx.indexIn(ui->lineEdit->text()) == -1 || ui->lineEdit_2->text() == "")
-    {
-        if (rx.indexIn(ui->lineEdit->text()) != -1)
-            qDebug() << "IP ERROR";
-        else
-            qDebug() << "NICKNAME ERROR";
         ui->label_3->setText("Неккоректный адрес сервера или не задан ник клиента");
-    }
     else
     {
         QString text = ui->lineEdit->text();
@@ -59,6 +52,7 @@ void Address::on_pushButton_clicked()
 void Address::openmain()
 {
     emit mainwin();
+    gamewin->clearGame();
 }
 
 void Address::on_pushButton_2_clicked()

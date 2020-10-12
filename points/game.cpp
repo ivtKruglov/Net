@@ -8,7 +8,6 @@ Game::Game(QWidget *parent):
     ui->setupUi(this);
     this->setFixedSize(440, 460);
 
-    // Следует узнать внешний ip
     setAddress();
     socket.bind(address, port);
 
@@ -17,8 +16,10 @@ Game::Game(QWidget *parent):
     interpoints = interection();
     permit = false;
     preData = false;
+    skipEvent = true;
     score_1 = 0;
     score_2 = 0;
+    ui->label_4->setText("Ожидание...");
     ui->label_5->setText(QString::number(score_1));
     ui->label_6->setText(QString::number(score_2));
 
@@ -68,11 +69,13 @@ void Game::socketReady()
                 player_2.push_back(p_2);
             searchClosedPoints();
             ui->label_6->setText(QString::number(score_2));
-            sortClosedPoints();
             repaint();
 
             if (isFill())
             {
+                status = socket.writeDatagram("end", serveraddress, serverport);
+                while (status == -1)
+                    status = socket.writeDatagram("end", serveraddress, serverport);
                 QMessageBox msgWin;
                 QString winner;
                 if (score_1 > score_2)
@@ -82,6 +85,7 @@ void Game::socketReady()
                 else
                     msgWin.setInformativeText("Ничья.");
                 QPushButton *button = msgWin.addButton("Выйти из игры", QMessageBox::ActionRole);
+                skipEvent = true;
                 msgWin.exec();
                 if (msgWin.clickedButton() == button)
                     emit mainwin();
@@ -90,9 +94,10 @@ void Game::socketReady()
         else
         {
             QMessageBox msgWin;
-            msgWin.setInformativeText("Игрок " + ui->label_3->text() + " покинул игру.");
+            msgWin.setInformativeText("Игрок " + ui->label_3->text() + " покинул игру. Вы выиграли.");
             msgWin.setIcon(QMessageBox::Warning);
             QPushButton *button = msgWin.addButton("Выйти из игры", QMessageBox::ActionRole);
+            skipEvent = true;
             msgWin.exec();
             if (msgWin.clickedButton() == button)
                 emit mainwin();
@@ -132,6 +137,7 @@ void Game::socketReady()
         else
             ui->label_4->setText("Ход 2 игрока");
         preData = true;
+        skipEvent = false;
     }
     data.clear();
 }
@@ -268,6 +274,7 @@ void Game::searchClosedPoints()
                                     }
                                 }
                                 closedp.append(r);
+                                sortClosedPoints();
                             }
                             else
                                 surroundedp.removeLast();
@@ -304,6 +311,7 @@ void Game::searchClosedPoints()
                                     }
                                 }
                                 closedp.append(r);
+                                sortClosedPoints();
                             }
                             else
                                 surroundedp.removeLast();
@@ -362,31 +370,27 @@ void Game::sortClosedPoints()
 {
     QVector<QPoint> nearpoints;
     QVector<QPoint> viewedpoints;
-    for (QVector<QPoint> arr:closedp)
+    int j;
+    for (int i = 0; i < closedp.last().size()-1; ++i)
     {
-        for (int i = 0; i < arr.size()-1; ++i)
+        if (abs(closedp.last().value(i+1).x()-closedp.last().value(i).x()) > 18 || abs(closedp.last().value(i+1).y()-closedp.last().value(i).y()) > 18)
         {
-            if (abs(arr.value(i).x()-arr.value(i+1).x()) > 18 || abs(arr.value(i).y()-arr.value(i+1).y()) > 18)
+            QPoint temp;
+            temp.setX(closedp.last().value(i+1).x());
+            temp.setY(closedp.last().value(i+1).y());
+            nearpoints = searchNearPoints(closedp.last().value(i));
+            for (QPoint np:nearpoints)
             {
-                qDebug() << i;
-                nearpoints = searchNearPoints(arr.value(i));
-                for (QPoint np:nearpoints)
+                if (inArr(np, closedp.last()) && !inArr(np, viewedpoints))
                 {
-                    if (inArr(np, arr) && !inArr(np, viewedpoints))
-                    {
-                        QPoint temp = arr.value(i+1);
-                        arr.value(i+1) = np;
-                        for (QPoint p:arr)
-                        {
-                            if (p == np)
-                                p = temp;
-                        }
-                        break;
-                    }
+                    j = closedp.last().indexOf(np);
+                    closedp.last().replace(i+1, np);
+                    closedp.last().replace(j, temp);
+                    break;
                 }
             }
-            viewedpoints.append(closedp.value(i));
         }
+        viewedpoints.append(closedp.last().value(i));
     }
     nearpoints.clear();
     viewedpoints.clear();
@@ -456,36 +460,46 @@ void Game::newServerPort(const quint16 &port)
 
 void Game::setAddress()
 {
-    QTcpSocket socket;
-    socket.connectToHost("8.8.8.8", 53);
-    if (socket.waitForConnected())
-        address = socket.localAddress();
-    socket.disconnect();
+    QList<QHostAddress> inf;
+    inf = QHostInfo::fromName(QHostInfo::localHostName()).addresses();
+    for (QHostAddress addr:inf)
+    {
+        if (addr.protocol() != QAbstractSocket::IPv6Protocol)
+        {
+            address = addr;
+            QHostInfo::fromName(QHostInfo::localHostName());
+        }
+    }
+}
+
+void Game::clearGame()
+{
+    permit = false;
+    preData = false;
+    skipEvent = true;
+    score_1 = 0;
+    score_2 = 0;
+    ui->label_3->setText("");
+    ui->label_4->setText("Ожидание другого игрока...");
+    ui->label_5->setText(QString::number(score_1));
+    ui->label_6->setText(QString::number(score_2));
+    player_1.clear();
+    player_2.clear();
+    colors.clear();
+    closedp.clear();
+    surroundedp.clear();
+    viewedps.clear();
+    friends.clear();
 }
 
 void Game::on_pushButton_clicked()
 {
-    QMessageBox msgWin;
-    msgWin.setInformativeText("Вы уверены, что хотите покинуть игру?");
-    msgWin.setIcon(QMessageBox::Question);
-    QPushButton *yes = msgWin.addButton("Да", QMessageBox::ActionRole);
-    QPushButton *no = msgWin.addButton("Нет", QMessageBox::ActionRole);
-    msgWin.exec();
-    if (msgWin.clickedButton() == yes)
-    {
-        // Следует добавить таймер для отслеживания времени бездействия игрока, чтобы
-        // предусмотреть неудачную отправку пакета и по достижению
-        // какого-то определенного времени бездействия уведомить второго игрока о том, что первый игрок,
-        // возможно, покинул игру, но сервер не получит данные об этом.
-        socket.writeDatagram("gameover", serveraddress, serverport);
-        emit mainwin();
-    }
-    else if (msgWin.clickedButton() == no)
-    {
-        delete yes;
-        delete no;
-        msgWin.close();
-    }
+    // Следует добавить таймер для отслеживания времени бездействия игрока, чтобы
+    // предусмотреть неудачную отправку пакета и по достижению
+    // какого-то определенного времени бездействия уведомить второго игрока о том, что первый игрок,
+    // возможно, покинул игру, но сервер не получит данные об этом.
+    skipEvent = false;
+    this->close();
 }
 
 void Game::showEvent(QShowEvent *)
@@ -496,6 +510,7 @@ void Game::showEvent(QShowEvent *)
     while (status == -1)
         status = socket.writeDatagram(data.data(), serveraddress, serverport);
     data.clear();
+    repaint();
 }
 
 void Game::mouseReleaseEvent(QMouseEvent *event)
@@ -521,6 +536,9 @@ void Game::mouseReleaseEvent(QMouseEvent *event)
 
             if (isFill())
             {
+                status = socket.writeDatagram("end", serveraddress, serverport);
+                while (status == -1)
+                    status = socket.writeDatagram("end", serveraddress, serverport);
                 QMessageBox msgWin;
                 QString winner;
                 if (score_1 > score_2)
@@ -548,7 +566,49 @@ void Game::paintEvent(QPaintEvent *)
     QPainter painter(this);
     draw.draw_lines(painter, lines);
     for (auto arr:closedp)
-        draw.draw_closed_lines(painter, arr, colors.value(0));
+    {
+        if (inArr(arr.last(), player_1))
+            draw.draw_closed_lines(painter, arr, colors.value(0));
+        else
+            draw.draw_closed_lines(painter, arr, colors.value(1));
+    }
     draw.draw_ellispe(painter, player_1, colors.value(0));
     draw.draw_ellispe(painter, player_2, colors.value(1));
+}
+
+void Game::closeEvent(QCloseEvent *event)
+{
+    if (!skipEvent)
+    {
+        QMessageBox msgWin;
+        msgWin.setInformativeText("Если вы покинете игру, вам будем засчитано поражение. Вы уверены, что хотите выйти?");
+        msgWin.setIcon(QMessageBox::Question);
+        QPushButton *yes = msgWin.addButton("Да", QMessageBox::ActionRole);
+        QPushButton *no = msgWin.addButton("Нет", QMessageBox::ActionRole);
+        msgWin.exec();
+        if (msgWin.clickedButton() == yes)
+        {
+            delete yes;
+            delete no;
+            status =  socket.writeDatagram("leave", serveraddress, serverport);
+            while (status == -1)
+                socket.writeDatagram("leave", serveraddress, serverport);
+            msgWin.setInformativeText("Вы проиграли.");
+            QPushButton *button = msgWin.addButton("Выйти из игры", QMessageBox::ActionRole);
+            msgWin.exec();
+            if (msgWin.clickedButton() == button)
+                emit mainwin();
+        }
+        else if (msgWin.clickedButton() == no)
+        {
+            delete yes;
+            delete no;
+            msgWin.close();
+        }
+    }
+    else
+    {
+        emit mainwin();
+        event->accept();
+    }
 }
